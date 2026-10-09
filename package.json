@@ -1,0 +1,13 @@
+{
+  "name": "AssemblyLinePuzzleFactory",
+  "uuid": "249503ef-ea69-4d63-ab98-ce581601a2f6",
+  "scripts": {
+    "test": "node tests/model-test.cjs && node tests/progress-test.cjs",
+    "test:build": "node tests/build-test.cjs",
+    "typecheck": "node C:/ProgramData/cocos/editors/Creator/3.8.8/resources/app.asar.unpacked/node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
+    "preview:build": "node tools/serve-build.cjs"
+  },
+  "creator": {
+    "version": "3.8.8"
+  }
+}

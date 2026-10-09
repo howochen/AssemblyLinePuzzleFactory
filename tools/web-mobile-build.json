@@ -1,0 +1,22 @@
+{
+  "name": "AssemblyLinePuzzleFactory",
+  "platform": "web-mobile",
+  "buildPath": "project://build",
+  "outputName": "web-mobile",
+  "debug": true,
+  "sourceMaps": true,
+  "startScene": "7cdfda9f-eaba-4cc4-8f2c-aef06976fae5",
+  "scenes": [
+    {
+      "url": "db://assets/scenes/Factory.scene",
+      "uuid": "7cdfda9f-eaba-4cc4-8f2c-aef06976fae5"
+    }
+  ],
+  "packages": {
+    "web-mobile": {
+      "orientation": "portrait",
+      "version": "1.0.1"
+    }
+  },
+  "logDest": "project://build/web-mobile-build.log"
+}

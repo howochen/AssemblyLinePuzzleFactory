@@ -1,0 +1,87 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const ts = require('C:/ProgramData/cocos/editors/Creator/3.8.8/resources/app.asar.unpacked/node_modules/typescript');
+const source = fs.readFileSync('assets/scripts/PuzzleModel.ts', 'utf8');
+const output = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+const modelModule = { exports: {} }; new Function('exports', 'module', output)(modelModule.exports, modelModule);
+const { PuzzleModel, levels, directions } = modelModule.exports;
+let checks = 0;
+assert.deepEqual(directions, [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }]); checks++;
+for (let index = 0; index < 3; index++) {
+    const m = new PuzzleModel(index);
+    const original = m.cells[0].direction;
+    for (let k = 0; k < 4; k++) m.rotate(0);
+    assert.equal(m.cells[0].direction, original); checks++;
+    assert.equal(m.next(), false); checks++;
+    m.cells.forEach((cell, i) => {
+        const target = m.cells[i + 1] || m.level.goal;
+        const wanted = directions.findIndex(d => cell.x + d.x === target.x && cell.y + d.y === target.y);
+        assert.ok(wanted >= 0);
+        while (cell.direction !== wanted) m.rotate(i);
+    });
+    m.start(); assert.equal(m.rotate(0), false); checks++;
+    for (let step = 0; step < m.cells.length; step++) m.step();
+    assert.equal(m.status, 'complete'); checks++;
+    assert.deepEqual(m.position, m.level.goal); checks++;
+    assert.equal(m.next(), true); assert.equal(m.levelIndex, (index + 1) % levels.length); assert.equal(m.status, 'ready'); checks++;
+}
+const failed = new PuzzleModel(); failed.start(); failed.step(); assert.equal(failed.status, 'failed'); checks++;
+failed.reset(); assert.equal(failed.status, 'ready'); assert.equal(failed.visited.size, 0); checks++;
+const cycle = new PuzzleModel(); cycle.cells[0].direction = 0; cycle.cells[1].direction = 2; cycle.start(); cycle.step(); cycle.step(); cycle.step(); assert.equal(cycle.status, 'failed'); checks++;
+function route(m, turns) {
+    for (const [x, y, direction] of turns) {
+        const i = m.cells.findIndex(c => c.x === x && c.y === y);
+        while (m.cells[i].direction !== direction) assert.equal(m.rotate(i), true);
+    }
+    m.start(); for (let i = 0; i < 20 && m.status === 'running'; i++) m.step();
+}
+const split = new PuzzleModel(3);
+assert.equal(split.rotate(0), false); checks++;
+route(split, []); assert.equal(split.status, 'failed'); assert.match(split.failure, /顏色/); checks++;
+split.reset(); route(split, [[2, 2, 3]]); assert.equal(split.delivered, 1); assert.equal(split.status, 'ready'); assert.equal(split.next(), false); checks++;
+split.prepareNextCargo(); assert.equal(split.cargoColor, 'blue'); assert.equal(split.visited.size, 0); checks++;
+route(split, [[2, 2, 0]]); assert.equal(split.status, 'complete'); checks++;
+const dye = new PuzzleModel(4);
+route(dye, []); assert.equal(dye.status, 'failed'); checks++;
+dye.reset(); route(dye, [[1, 2, 3]]); assert.equal(dye.delivered, 1); assert.equal(dye.cargoColor, 'blue'); checks++;
+dye.prepareNextCargo(); route(dye, [[1, 2, 0]]); assert.equal(dye.status, 'complete'); checks++;
+assert.equal(dye.stars, 2); checks++;
+const factory = new PuzzleModel(5);
+route(factory, [[2, 2, 3]]); assert.equal(factory.status, 'failed'); assert.match(factory.failure, /指定染色/); checks++;
+factory.reset(); route(factory, [[1, 2, 1]]); assert.equal(factory.delivered, 1); checks++;
+factory.prepareNextCargo(); route(factory, [[1, 2, 3]]); assert.equal(factory.status, 'complete'); checks++;
+assert.equal(factory.next(), true); assert.equal(factory.levelIndex, 6); checks++;
+factory.reset(); assert.equal(factory.delivered, 0); assert.equal(factory.processed, undefined); checks++;
+const budget = new PuzzleModel(3);
+for (let i = 0; i < 8; i++) assert.equal(budget.rotate(1), true);
+assert.equal(budget.rotate(1), false); assert.equal(budget.moves, 8); assert.equal(budget.cells[1].direction, 0); checks++;
+budget.start(); assert.equal(budget.status, 'running'); checks++;
+budget.reset(); assert.equal(budget.moves, 0); assert.equal(budget.rotate(1), true); checks++;
+assert.equal(budget.selectLevel(-1), false); assert.equal(budget.selectLevel(levels.length), false); assert.equal(budget.selectLevel(1.5), false); checks++;
+assert.equal(budget.selectLevel(4), true); assert.equal(budget.levelIndex, 4); assert.equal(budget.moves, 0); assert.equal(budget.delivered, 0); checks++;
+const optimal = new PuzzleModel(4);
+route(optimal, [[1, 2, 3]]); optimal.prepareNextCargo(); route(optimal, []);
+assert.equal(optimal.status, 'complete'); assert.equal(optimal.moves, 3); assert.equal(optimal.stars, 3); checks++;
+const waste = new PuzzleModel(4);
+for (let i = 0; i < 4; i++) waste.rotate(1);
+route(waste, [[1, 2, 3]]); waste.prepareNextCargo(); route(waste, []);
+assert.equal(waste.status, 'complete'); assert.equal(waste.moves, 7); assert.equal(waste.stars, 1); checks++;
+assert.equal(waste.selectLevel(5), true); assert.equal(waste.stars, 0); checks++;
+const recipe = new PuzzleModel(6);
+route(recipe, []); assert.equal(recipe.status, 'failed'); assert.match(recipe.failure, /步驟/); checks++;
+recipe.reset(); route(recipe, [[2, 2, 3]]); assert.equal(recipe.status, 'failed'); assert.match(recipe.failure, /順序/); checks++;
+recipe.reset(); route(recipe, [[1, 2, 1]]); assert.equal(recipe.status, 'failed'); assert.deepEqual(recipe.processTrail, ['blue']); checks++;
+recipe.reset(); route(recipe, [[1, 2, 1], [2, 2, 3]]); assert.equal(recipe.delivered, 1); assert.deepEqual(recipe.processTrail, ['blue', 'red']); checks++;
+assert.equal(recipe.undoRotation(), false); checks++;
+recipe.prepareNextCargo(); assert.deepEqual(recipe.processTrail, []); assert.equal(recipe.cargoColor, 'blue'); checks++;
+route(recipe, []); assert.equal(recipe.status, 'complete'); assert.equal(recipe.moves, 4); assert.equal(recipe.stars, 3); checks++;
+assert.equal(recipe.next(), true); assert.equal(recipe.levelIndex, 0); checks++;
+const undo = new PuzzleModel(3);
+assert.equal(undo.undoRotation(), false); assert.equal(undo.moves, 0); checks++;
+undo.rotate(1); undo.rotate(2); assert.equal(undo.undoRotation(), true); assert.equal(undo.cells[2].direction, 0); assert.equal(undo.moves, 1); checks++;
+assert.equal(undo.undoRotation(), true); assert.equal(undo.cells[1].direction, 0); assert.equal(undo.moves, 0); checks++;
+for (let i = 0; i < 8; i++) undo.rotate(1);
+assert.equal(undo.undoRotation(), true); assert.equal(undo.rotate(2), true); assert.equal(undo.moves, 8); checks++;
+undo.start(); assert.equal(undo.undoRotation(), false); checks++;
+undo.reset(); assert.equal(undo.undoRotation(), false); assert.equal(undo.moves, 0); checks++;
+console.log(`PASS: ${checks} checks; 7 levels, ordered recipes, shortcuts, per-cargo progress, undo boundaries, budgets, stars and selection.`);
